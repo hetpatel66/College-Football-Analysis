@@ -1,0 +1,1030 @@
+---
+title: "Project"
+author: "Nate Miller, Het Patel, Johnny Vecchio"
+date: "12/4/2021"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(boot)
+library(ggplot2)
+
+FB13 <- read.csv("cfb13.csv")
+FB14 <- read.csv("cfb14.csv")
+FB15 <- read.csv("cfb15.csv")
+FB16 <- read.csv("cfb16.csv")
+FB17 <- read.csv("cfb17.csv")
+FB18 <- read.csv("cfb18.csv")
+```
+
+## 2013
+Teams who had "Upsets" in 2013, as defined by a top 25 team in final AP poll who lost to an unranked team in the final AP poll and ranked power 5 teams who had 3 or less total losses.
+
+(Upset Team, Winning team)-upset team total losses
+
+(South Carolina, Georgia)-2 loss
+(South Carolina, Tennessee)-2 loss
+(Oklahoma, Texas)-2 loss
+(Oregon, Arizona)-2 loss
+(Stanford, Utah)-3 loss
+(LSU, Georgia)-3 loss
+(LSU, Ole Miss)-3 loss
+(Oklahoma State, West Virginia)-3 loss
+
+```{r}
+#teams who got upset
+
+sc13 <- FB13 %>% 
+  filter(Team == "South Carolina (SEC)")
+
+ok13 <- FB13 %>% 
+  filter(Team == "Oklahoma (Big 12)")
+
+oreg13 <- FB13 %>% 
+  filter(Team == "Oregon (Pac-12)")
+
+stan13 <- FB13 %>% 
+  filter(Team == "Stanford (Pac-12)")
+
+lsu13 <- FB13 %>% 
+  filter(Team == "LSU (SEC)")
+
+okstate13 <- FB13 %>% 
+  filter(Team == "Oklahoma St. (Big 12)")
+
+upsetteamsJ<-rbind(sc13, ok13, oreg13, stan13, lsu13, okstate13)
+
+#teams who pulled the upset
+
+uga13 <- FB13 %>% 
+  filter(Team == "Georgia (SEC)")
+
+tenn13 <- FB13 %>% 
+  filter(Team == "Tennessee (SEC)")
+
+tex13 <- FB13 %>% 
+  filter(Team == "Texas (Big 12)")
+
+ariz13 <- FB13 %>% 
+  filter(Team == "Arizona (Pac-12)")
+
+utah13 <- FB13 %>% 
+  filter(Team == "Utah (Pac-12)")
+
+miss13 <- FB13 %>% 
+  filter(Team == "Ole Miss ()")
+
+wvirg13 <- FB13 %>% 
+  filter(Team == "West Virginia (Big 12)")
+
+upsettersJ<-rbind(uga13, tenn13, tex13, ariz13, utah13, miss13, wvirg13)
+
+upsettersJ
+upsetteamsJ
+```
+
+## Team Analysis
+
+We will extract a few specific columns including the following.
+Wins, Off Rank, Def Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank and Scoring,Def.Rank
+
+```{r, echo=FALSE}
+select.upsettersJ <- upsettersJ %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank)
+  
+select.upsettedJ<-upsetteamsJ %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank)
+select.upsettersJ
+select.upsettedJ
+
+means.underJ<-sapply(select.upsettersJ,FUN=mean)
+means.overJ<-sapply(select.upsettedJ,FUN=mean)
+
+
+all.fbselectJ<-FB13 %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank)
+
+fb.meansJ<-sapply(all.fbselectJ,FUN=mean)
+```
+
+```{r}
+mean.upsetJ<-means.overJ-means.underJ ## Upset teams means - upsetters means.  
+mean.allJ<-means.overJ-fb.meansJ ## upset teams - all team means
+
+mean.upsetJ-mean.allJ
+
+mean.upsetJ
+```
+
+Based on these means,  the upsetting teams had much better offensive rankings than what an average team would be, that includes off rank, passing off rank and rushing off rank.  Comparatively there was a drop in defensive rankings, however slightly less in terms of overall magnitude.  
+
+It appears that there is no category in which the upsetting teams outperformed the upset teams which is not necessarily surprising.    
+
+#3 Predictive Modeling
+
+We used a linear model to see if a teams attributes accurately predicted their overall wins. We only used the categories we extracted earlier.
+
+```{r}
+par(mfrow=c(2,2))
+
+model.fitJ<-lm(Win~.,data=all.fbselectJ)
+
+step(model.fitJ,direction = "both",trace=F)
+
+best.lmJ<-lm(Win~Off.Rank+Redzone.Points+Scoring.Def.Rank,data = all.fbselectJ)
+summary(best.lmJ)
+
+mean(predict.lm(best.lmJ,upsetteamsJ)-upsetteamsJ$Win)
+
+mean(predict.lm(best.lmJ,upsettersJ)-upsettersJ$Win)
+
+plot(best.lmJ)
+```
+This model predicted fairly accurately the win totals for each groups of teams, with the mean win prediction being less than half a game off from actual.
+
+## Plots and Correlations
+
+```{r}
+par(mfrow=c(2,2))
+ggplot(mapping=aes(upsettersJ$Win,upsettersJ$Off.Rank))+geom_point()
+ggplot(mapping=aes(upsetteamsJ$Win,upsetteamsJ$Off.Rank))+geom_point()
+ggplot(mapping = aes(FB13$Win,FB13$Off.Rank))+geom_point()
+
+
+cor.test(FB13$Win,FB13$Off.Rank)
+cor.test(upsettersJ$Win,upsettersJ$Off.Rank)
+cor.test(upsetteamsJ$Win,upsetteamsJ$Off.Rank)
+```
+Based on offense rankings and wins, there was a fairly strong correlation for upsetting teams, but near none for the upset teams
+
+## Interpretation
+
+Overall there seems to be a small set of statistics that one could use to reason why teams get upset.  The biggest one is that the average team who upsets another tends to have a better than average offense.
+
+Also, the linear models generated predicted that the Upset teams outperformed their predictions while the Upsetting teams under performed their predictions.  This leads to uncounted variables(such as injuries, home/away game, time of day etc.) or natural variation being an explanation for why these teams got upset.  
+
+Overall based on this data and testing, we have found no significant characteristics of upset teams in 2013.  
+
+## 2014
+
+Same criteria as above
+
+(Ohio State, Virginia Tech) - 1 loss
+(Baylor, West Virginia) - 2 loss
+(Georgia Tech, Duke) - 3 loss
+(Georgia Tech, North Carolina) - 3 loss
+(Georgia, Florida) - 3 loss
+(UCLA, Stanford) - 3 loss
+(Arizona State, Oregon State) - 3 loss
+(Wisconsin, LSU) - 3 loss
+(Wisconsin, Northwestern) - 3 loss
+(Missouri, Indiana) - 3 loss
+#(Boise State, Air Force) - 2 loss
+(Marshall, Western Kentucky) - 1 loss
+(Memphis, Houston) - 3 loss
+
+```{r}
+#teams who got upset
+
+osu14 <- FB14 %>% 
+  filter(Team == "Ohio St. (Big Ten)")
+
+bay14 <- FB14 %>% 
+  filter(Team == "Baylor (Big 12)")
+
+gtech14 <- FB14 %>% 
+  filter(Team == "Georgia Tech (ACC)")
+
+uga14 <- FB14 %>% 
+  filter(Team == "Georgia (SEC)")
+
+ucla14 <- FB14 %>% 
+  filter(Team == "UCLA (Pac-12)")
+
+asu14 <- FB14 %>% 
+  filter(Team == "Arizona St. (Pac-12)")
+
+wisc14 <- FB14 %>% 
+  filter(Team == "Wisconsin (Big Ten)")
+
+mizzou14 <- FB14 %>% 
+  filter(Team == "Missouri (SEC)")
+
+marsh14 <- FB14 %>% 
+  filter(Team == "Marshall (C-USA)")
+
+memph14 <- FB14 %>% 
+  filter(Team == "Memphis (AAC)")
+
+upsetteams2014 <- rbind(osu14, bay14, gtech14, uga14, ucla14, asu14, wisc14, mizzou14, marsh14, memph14)
+
+#teams who pulled the upset
+
+vtech14 <- FB14 %>% 
+  filter(Team == "Virginia Tech (ACC)")
+
+wvirg14 <- FB14 %>% 
+  filter(Team == "West Virginia (Big 12)")
+
+duke14 <- FB14 %>% 
+  filter(Team == "Duke (ACC)")
+
+nc14 <- FB14 %>% 
+  filter(Team == "North Carolina (ACC)")
+
+florida14 <- FB14 %>% 
+  filter(Team == "Florida (SEC)")
+
+stan14 <- FB14 %>% 
+  filter(Team == "Stanford (Pac-12)")
+
+oregstate14 <- FB14 %>% 
+  filter(Team == "Oregon St. (Pac-12)")
+
+lsu14 <- FB14 %>% 
+  filter(Team == "LSU (SEC)")
+
+nwest14 <- FB14 %>% 
+  filter(Team == "Northwestern (Big Ten)")
+
+ind14 <- FB14 %>% 
+  filter(Team == "Indiana (Big Ten)")
+
+wkent14 <- FB14 %>% 
+  filter(Team == "Western Ky. (C-USA)")
+
+hou14 <- FB14 %>% 
+  filter(Team == "Houston (AAC)")
+
+upsetters2014 <- rbind(vtech14, wvirg14, duke14, nc14, florida14, stan14, oregstate14, lsu14, nwest14, ind14, wkent14, hou14)
+
+upsetteams2014
+upsetters2014
+```
+
+Analysis similar to 2013, but will include more statistics
+
+```{r}
+select.upsetters2014 <- upsetters2014 %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank,Redzone.Off.Rank,Redzone.Def.Rank,Sack.Rank,X3rd.Down.Def.Rank)
+  
+select.upset2014 <- upsetteams2014 %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank,Redzone.Off.Rank,Redzone.Def.Rank,Sack.Rank,X3rd.Down.Def.Rank)
+select.upsetters2014
+select.upset2014
+
+
+means.under2014 <- sapply(select.upsetters2014,FUN=mean)
+means.over2014 <- sapply(select.upset2014,FUN=mean)
+
+all.fbselect2014 <- FB14 %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank,Redzone.Off.Rank,Redzone.Def.Rank,Sack.Rank,X3rd.Down.Def.Rank)
+
+fb.means2014 <- sapply(all.fbselect2014, FUN=mean)
+```
+
+```{r}
+mean.upset2014<-means.over2014-means.under2014 ## Upset teams means - upsetters means.  
+mean.all2014<-means.over2014-fb.means2014 ## upset teams - all team means
+
+mean.upset2014  # Positive rank is better for upsetters teams.  
+mean.all2014 
+means.under2014-fb.means2014 ## upsetting teams-all teams , negative rank is better for upsetters teams
+```
+
+All important stats show that the upset teams are much better than the upsetting teams except for passing offense rank  and redzone defense rank.
+
+Both upset and upsetting teams are better than the average team.  
+
+In general, it appears that the upsetting teams need to be better than average in order to upset a top 25 team.
+
+## Predictive analytics
+
+```{r}
+model.fit2014<-lm(Win~.,data=all.fbselect2014)
+
+step(model.fit2014,direction = "both",trace=F)
+
+lm(formula = Win ~ Off.Rank + Redzone.Points + Redzone.Points.Allowed + 
+    Scoring.Def.Rank + Redzone.Off.Rank + Sack.Rank, data = all.fbselect2014) # Best Model
+
+mean(predict.lm(model.fit2014,select.upset2014)-select.upset2014$Win)
+
+mean(predict.lm(model.fit2014,select.upsetters2014)-select.upsetters2014$Win)
+```
+This model under predicted the win totals for the upset teams. This could be interpreted that the better teams were outperforming their prediction relative to the upset teams who were slightly under their predictions.
+
+## Plotting and Correlations
+
+```{r}
+par(mfrow=c(2,2))
+ggplot(mapping=aes(upsetters2014$Win,upsetters2014$Def.Rank))+geom_point()
+ggplot(mapping=aes(upsetteams2014$Win,upsetteams2014$Def.Rank))+geom_point()
+ggplot(mapping = aes(FB14$Win,FB14$Def.Rank))+geom_point()
+
+cor.test(FB14$Win,FB14$Def.Rank)
+cor.test(upsetteams2014$Win,upsetteams2014$Def.Rank)
+cor.test(upsetters2014$Win,upsetters2014$Def.Rank)
+```
+
+These are relatively low correlations for all 3 tests.  
+
+## Interpretation
+
+In this case, we would argue that there is little to no connection between the defense of the upsetting team and their victory.
+
+## Combination of years
+```{r}
+all.upsettersJ<-rbind(select.upsettersJ,select.upsetters2014[,1:9])
+all.upsetsJ<-rbind(select.upsettedJ,select.upset2014[,1:9])
+all.fbsJ<-rbind(all.fbselectJ,all.fbselect2014[,1:9])
+
+sapply(all.upsettersJ, mean)->mean.uJ
+sapply(all.upsetsJ,mean)->mean.upJ
+sapply(all.fbsJ,mean)->mean.all.fullJ
+
+mean.uJ-mean.all.fullJ
+mean.uJ-mean.upJ
+
+par(mfrow=c(2,2))
+
+plot(all.upsetsJ$Def.Rank,all.upsetsJ$Off.Rank)
+plot(all.upsettersJ$Def.Rank,all.upsettersJ$Off.Rank)
+
+mean(all.upsetsJ$Off.Rank)
+mean(all.upsettersJ$Off.Rank)
+mean(all.fbsJ$Off.Rank)
+```
+
+Combining the years of 2013 and 2014 doesn't change much, however the clearest piece of evidence is still that in order to upset a top 25 team, you must be above average on offensive and defensive rankings.
+
+## 2015
+
+Same criteria as above
+
+(Michigan State, Nebraska)-2 loss
+(Houston, UCONN)-2loss
+(West Kentucky,Indiana)-2loss
+(Ole Miss,Memphis)-3loss
+(ole Miss,Arkansas)-3loss
+(Baylor,Texas)-3loss
+(Florida State,Georgia Tech)-3loss
+(North Carolina,South Carolina)-3loss
+(LSU, Arkansas)-3loss
+(utah,USC,Arizona,UCLA)-3loss
+
+```{r}
+#teams who got upset
+
+msu15<-FB15 %>% 
+  filter(Team == "Michigan St. (Big Ten)")
+
+hou15<-FB15 %>% 
+  filter(Team == "Houston (AAC)")
+
+wku15<-FB15 %>% 
+  filter(Team == "Western Ky. (C-USA)")
+
+miss15<-FB15 %>% 
+  filter(Team == "Ole Miss (SEC)")
+
+
+bay15<-FB15 %>% 
+  filter(Team == "Baylor (Big 12)")
+
+fsu15<-FB15 %>% 
+  filter(Team == "Florida St. (ACC)")
+
+ncu15<-FB15 %>% 
+  filter(Team == "North Carolina (ACC)")
+
+lsu15<-FB15 %>% 
+  filter(Team == "LSU (SEC)")
+
+utah15<-FB15 %>% 
+  filter(Team == "Utah (Pac-12)")
+
+upsetteams<-rbind(utah15,lsu15,msu15,hou15,fsu15,bay15,wku15,ncu15,miss15)
+
+#teams who pulled the upset
+
+neb15<-FB15 %>% 
+  filter(Team == "Nebraska (Big Ten)")
+
+uconn15<-FB15 %>% 
+  filter(Team == "UConn (AAC)")
+
+ind15<-FB15 %>% 
+  filter(Team == "Indiana (Big Ten)")
+
+mem15<-FB15 %>% 
+  filter(Team == "Memphis (AAC)")
+
+
+ark15<-FB15 %>% 
+  filter(Team == "Arkansas (SEC)")
+
+gt15<-FB15 %>% 
+  filter(Team == "Georgia Tech (ACC)")
+
+ncu15<-FB15 %>% 
+  filter(Team == "South Carolina (SEC)")
+
+usc15<-FB15 %>% 
+  filter(Team == "Southern California (Pac-12)")
+
+ariz15<-FB15 %>% 
+  filter(Team == "Arizona (Pac-12)")
+
+ucla15<-FB15 %>% 
+  filter(Team == "UCLA (Pac-12)")
+tex15<-FB15 %>% 
+  filter(Team=="Texas (Big 12)")
+
+upsetters<-rbind(neb15,uconn15,ind15,mem15,ark15,gt15,ncu15,usc15,ariz15,ucla15,tex15)
+
+upsetters
+upsetteams
+```
+
+## Team Analysis
+
+We will extract a few specific columns including the following.
+Wins, Off Rank, Def Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank and Scoring,Def.Rank
+
+```{r pressure, echo=FALSE}
+
+select.upsetters<-upsetters %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank)
+  
+select.upsetted<-upsetteams %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank)
+select.upsetters
+select.upsetted
+
+means.under<-sapply(select.upsetters,FUN=mean)
+means.over<-sapply(select.upsetted,FUN=mean)
+
+all.fbselect<-FB15 %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank)
+
+fb.means<-sapply(all.fbselect,FUN=mean)
+```
+
+```{r}
+mean.upset<-means.over-means.under ## Upset teams means - upsetters means.  
+mean.all<-means.over-fb.means ## upset teams - all team means
+
+mean.upset-mean.all
+
+mean.upset
+```
+
+Based on these means,  the upsetting teams had much better offensive rankings than what an average team would be, that includes off rank, passing off rank and rushing off rank. Comparatively there was a drop in defensive rankings, however slightly less in terms of overall magnitude.
+
+The biggest thing to point out is Rushing Offense Rank. The average upset team is better at running the ball than the average football team.  
+
+#3 Predictive Modeling
+
+We will be using a linear model to see if a teams attributes accurately predicted their overall wins. using only categories extracted
+
+```{r}
+par(mfrow=c(2,2))
+
+model.fit<-lm(Win~.,data=all.fbselect)
+
+step(model.fit,direction = "both",trace=F)
+
+best.lm<-lm(Win~Off.Rank+Redzone.Points+Scoring.Def.Rank,data = all.fbselect)
+summary(best.lm)
+
+mean(predict.lm(best.lm,upsetteams)-upsetteams$Win)
+
+mean(predict.lm(best.lm,upsetters)-upsetters$Win)
+
+plot(best.lm)
+```
+This model predicted that the Upset teams would perform about one game below on average what they actually did, and the reverse is true with the upsetters
+
+## Plots and Correlations
+
+```{r}
+par(mfrow=c(2,2))
+ggplot(mapping=aes(upsetters$Win,upsetters$Off.Rank))+geom_point()
+ggplot(mapping=aes(upsetteams$Win,upsetteams$Off.Rank))+geom_point()
+ggplot(mapping = aes(FB15$Win,FB15$Off.Rank))+geom_point()
+
+cor.test(FB15$Win,FB15$Off.Rank)
+cor.test(upsetters$Win,upsetters$Off.Rank)
+cor.test(upsetteams$Win,upsetteams$Off.Rank)
+```
+Purely based on offense, the upset teams had a much smaller correlation between their offensive ranking and their Win totals when compared to the average fbs team as well as the upsetters.
+
+## Interpretation
+
+Overall there seems to be a small set of statistics that one could use to reason why teams get upset.  The biggest one is that the average team who upsets another tends to have a better than average offense.
+
+Also, the linear models generated predicted that the Upset teams outperformed their predictions while the Upsetter teams under performed their predictions.  This leads to uncounted variables(such as injuries, home/away game, time of day etc.) or natural variation being an explanation for why these teams got upset.  
+
+Overall based on this data and testing, i have found no significant characteristics of upset teams in 2015.  
+
+## 2016
+
+Same criteria as above
+
+(Clemson,Pitt)
+(Oklahoma,Houston)
+(Penn State,Pitt)
+(FSU,North Carolina)
+(Michigan, Iowa)
+(OKstate, Central Michigan)
+(Stanford, Wash st.)
+(USF, Temple)
+(san diego state, south alabama, wyoming, colorado state)
+
+
+```{r}
+#teams who got upset
+
+cle16<-FB16 %>% 
+  filter(Team == "Clemson (ACC)")
+
+ok16<-FB16 %>% 
+  filter(Team == "Oklahoma (Big 12)")
+
+psu16<-FB16 %>% 
+  filter(Team == "Penn St. (Big Ten)")
+
+mich16<-FB16 %>% 
+  filter(Team == "Michigan (Big Ten)")
+
+okst16<-FB16 %>% 
+  filter(Team == "Oklahoma St. (Big 12)")
+
+fsu16<-FB16 %>% 
+  filter(Team == "Florida St. (ACC)")
+
+sfa16<-FB16 %>% 
+  filter(Team == "South Fla. (AAC)")
+
+stan16<-FB16 %>% 
+  filter(Team == "Stanford (Pac-12)")
+
+upset.16<-rbind(cle16,ok16,psu16,mich16,okst16,fsu16,sfa16,stan16)
+
+#teams who pulled the upset
+
+pitt16<-FB16 %>% 
+  filter(Team == "Pittsburgh (ACC)")
+
+hou16<-FB16 %>% 
+  filter(Team == "Houston (AAC)")
+
+iwa16<-FB16 %>% 
+  filter(Team == "Iowa (Big Ten)")
+
+cmu16<-FB16 %>% 
+  filter(Team == "Central Mich. (MAC)")
+
+sab16<-FB16 %>% 
+  filter(Team == "South Alabama (Sun Belt)")
+
+ncu16<-FB16 %>% 
+  filter(Team == "North Carolina (ACC)")
+
+tmp16<-FB16 %>% 
+  filter(Team == "Temple (AAC)")
+
+wsu16<-FB16 %>% 
+  filter(Team == "Washington St. (Pac-12)")
+
+upsetters.16<-rbind(pitt16,hou16,iwa16,cmu16,sab16,ncu16,tmp16,wsu16)
+
+upsetters.16
+upset.16
+```
+
+Analysis similar to 2015, but will include more statistics
+
+```{r}
+
+select.upsetters.16<-upsetters.16 %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank,Redzone.Off.Rank,Redzone.Def.Rank,Sack.Rank,X3rd.Down.Def.Rank)
+  
+select.upset.16<-upset.16 %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank,Redzone.Off.Rank,Redzone.Def.Rank,Sack.Rank,X3rd.Down.Def.Rank)
+select.upsetters.16
+select.upset.16
+
+means.under.16<-sapply(select.upsetters.16,FUN=mean)
+means.over.16<-sapply(select.upset.16,FUN=mean)
+
+all.fbselect.16<-FB16 %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank,Redzone.Off.Rank,Redzone.Def.Rank,Sack.Rank,X3rd.Down.Def.Rank)
+
+fb.means.16<-sapply(all.fbselect.16,FUN=mean)
+```
+
+```{r}
+mean.upset.16<-means.over.16-means.under.16 ## Upset teams means - upsetters means.  
+mean.all.16<-means.over.16-fb.means.16 ## upset teams - all team means
+
+mean.upset.16  # Positive rank is better for upsetters teams.  
+mean.all.16 
+means.under.16-fb.means.16 ## upsetting teams-all teams , negative rank is better for upsetters teams
+```
+
+The most intriguing statistic here is that the average upsetting team had a better defense than the team that they upset, but overall were a lot worse in terms of total offense.  Passing offenses were very close as were redzone points allowed.  Overall, the upsetting teams seemed to perform much better defensively than offensively.  
+
+In general it appears that the upsetting teams need to be better than average in order to upset a top 25 team.
+
+## Predictive analytics
+
+```{r}
+model.fit.16<-lm(Win~.,data=all.fbselect.16)
+
+step(model.fit.16,direction = "both",trace=F)
+
+lm(formula = Win ~ Off.Rank + Redzone.Points + Redzone.Points.Allowed + 
+    Scoring.Def.Rank + Redzone.Off.Rank + Sack.Rank, data = all.fbselect.16) # Best Model
+
+mean(predict.lm(model.fit.16,select.upset.16)-select.upset.16$Win)
+
+mean(predict.lm(model.fit.16,select.upsetters.16)-select.upsetters.16$Win)
+```
+
+This model under predicted the win totals for each group, but much more for the teams that were upset, this leads me to believe that the better teams were outperforming their true talent relative to the upset teams.  This may be decent evidence towards a pattern of upset.
+
+## Plotting and Correlations
+
+```{r}
+par(mfrow=c(2,2))
+ggplot(mapping=aes(upsetters.16$Win,upsetters.16$Def.Rank))+geom_point()
+ggplot(mapping=aes(upset.16$Win,upset.16$Def.Rank))+geom_point()
+ggplot(mapping = aes(FB16$Win,FB16$Def.Rank))+geom_point()
+
+cor.test(FB16$Win,FB16$Def.Rank)
+cor.test(upset.16$Win,upset.16$Def.Rank)
+cor.test(upsetters.16$Win,upsetters.16$Def.Rank)
+```
+There is a much stronger correlation between all teams Wins and Defensive ranking than upset teams or upsetting teams, however upsetting teams correlation is much higher than upset teams.
+
+## Interpretation
+
+In this case, I would argue that there could be a slight connection between the defense of the upsetting team and their victory. In 2016, the defensive ranking of these upset teams was overall higher than the teams they upset.
+
+## combination of years
+```{r}
+all.upsetters<-rbind(select.upsetters,select.upsetters.16[,1:9])
+all.upsets<-rbind(select.upsetted,select.upset.16[,1:9])
+all.fbs<-rbind(all.fbselect,all.fbselect.16[,1:9])
+
+sapply(all.upsetters, mean)->mean.u
+sapply(all.upsets,mean)->mean.up
+sapply(all.fbs,mean)->mean.all.full
+
+mean.u-mean.all.full
+mean.u-mean.up
+
+par(mfrow=c(2,2))
+
+plot(all.upsets$Def.Rank,all.upsets$Off.Rank)
+plot(all.upsetters$Def.Rank,all.upsetters$Off.Rank)
+
+mean(all.upsets$Off.Rank)
+mean(all.upsetters$Off.Rank)
+mean(all.fbs$Off.Rank)
+```
+Combining the years of 2015 and 2016 doesn't change much, however the clearest piece of evidence is still that in order to upset a top 25 team, you must be above average on offensive and defensive rankings.
+
+## 2017
+
+Same criteria as above
+
+(Oklahoma, Iowa State)- 1 loss
+(Clemson, Syracuse)- 2 loss
+(Ohio State, Iowa)- 2 loss
+(Notre Dame, Cincinnati)- 1 loss
+(USC, Washington State)- 3 loss
+(Miami, Pitt)- 3 loss
+(Oklahoma State, Iowa State)- 2 loss
+(Oklahoma State, Baylor)- 2 loss
+(Michigan State, Purdue)- 2 loss
+(Washington, Arizona State)- 3 loss
+(Northwestern, Duke)- 3 loss
+
+```{r}
+#teams who got upset
+
+ok17 <- FB17 %>% 
+  filter(Team == "Oklahoma (Big 12)")
+
+clem17 <- FB17 %>% 
+  filter(Team == "Clemson (ACC)")
+
+ohiostate17 <- FB17 %>% 
+  filter(Team == "Ohio St. (Big Ten)")
+
+notre17 <- FB17 %>% 
+  filter(Team == "Notre Dame (FBS Independent)")
+
+usc17 <- FB17 %>% 
+  filter(Team == "Southern California (Pac-12)")
+
+miami17 <- FB17 %>% 
+  filter(Team == "Miami (FL) (ACC)")
+
+okstate17 <- FB17 %>% 
+  filter(Team == "Oklahoma St. (Big 12)")
+
+michiganstate17 <- FB17 %>% 
+  filter(Team == "Michigan St. (Big Ten)")
+
+washington17 <- FB17 %>% 
+  filter(Team == "Washington (Pac-12)")
+
+northwestern17 <- FB17 %>% 
+  filter(Team == "Northwestern (Big Ten)")
+
+upsetteams<-rbind(ok17, clem17, ohiostate17, notre17, usc17, miami17, okstate17, michiganstate17, washington17, northwestern17)
+
+#teams who pulled the upset
+
+iowastate17 <- FB17 %>% 
+  filter(Team == "Iowa St. (Big 12)")
+
+syracuse17 <- FB17 %>% 
+  filter(Team == "Syracuse (ACC)")
+
+iowa17 <- FB17 %>% 
+  filter(Team == "Iowa (Big Ten)")
+
+cincinnati17 <- FB17 %>% 
+  filter(Team == "Cincinnati (AAC)")
+
+washstate17 <- FB17 %>% 
+  filter(Team == "Washington St. (Pac-12)")
+
+pitt17 <- FB17 %>% 
+  filter(Team == "Pittsburgh (ACC)")
+
+baylor17 <- FB17 %>% 
+  filter(Team == "Baylor (Big 12)")
+
+purdue17 <- FB17 %>% 
+  filter(Team == "Purdue (Big Ten)")
+
+aristate17 <- FB17 %>% 
+  filter(Team == "Arizona St. (Pac-12)")
+
+duke17 <- FB17 %>% 
+  filter(Team == "Duke (ACC)")
+
+upsetters<-rbind(iowastate17, syracuse17, iowa17, cincinnati17, washstate17, pitt17, baylor17, purdue17, aristate17, duke17)
+
+upsetters
+upsetteams
+```
+
+## Team Analysis
+
+We will extract a few specific columns including the following.
+Wins, Off Rank, Def Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank and Scoring,Def.Rank
+
+```{r, echo=FALSE}
+select.upsetters <- upsetters %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank)
+  
+select.upsetted<-upsetteams %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank)
+select.upsetters
+select.upsetted
+
+means.under<-sapply(select.upsetters,FUN=mean)
+means.over<-sapply(select.upsetted,FUN=mean)
+
+all.fbselect<-FB17 %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank)
+
+fb.means<-sapply(all.fbselect,FUN=mean)
+```
+
+```{r}
+mean.upset<-means.over-means.under ## Upset teams means - upsetters means.  
+mean.all<-means.over-fb.means ## upset teams - all team means
+
+mean.upset-mean.all
+
+mean.upset
+```
+
+Based on these means,  the upsetting teams had much better offensive rankings than what an average team would be, that includes off rank, passing off rank and rushing off rank.  Comparatively there was a drop in defensive rankings, however slightly less in terms of overall magnitude.  
+
+The biggest thing to point out is Rushing Offense Rank, the average upset team is better at running the ball than the average football team.  
+
+#3 Predictive Modeling
+
+We will be using a linear model to see if a teams attributes accurately predicted their overall wins. using only categories extracted
+
+```{r}
+par(mfrow=c(2,2))
+
+model.fit<-lm(Win~.,data=all.fbselect)
+
+step(model.fit,direction = "both",trace=F)
+
+best.lm<-lm(Win~Off.Rank+Redzone.Points+Scoring.Def.Rank,data = all.fbselect)
+summary(best.lm)
+
+mean(predict.lm(best.lm,upsetteams)-upsetteams$Win)
+
+mean(predict.lm(best.lm,upsetters)-upsetters$Win)
+
+plot(best.lm)
+```
+This model predicted that the Upset teams would perform about one game below on average what they actually did, and the reverse is true with the upsetters
+
+## Plots and Correlations
+
+```{r}
+par(mfrow=c(2,2))
+ggplot(mapping=aes(upsetters$Win,upsetters$Off.Rank))+geom_point()
+ggplot(mapping=aes(upsetteams$Win,upsetteams$Off.Rank))+geom_point()
+ggplot(mapping = aes(FB17$Win,FB17$Off.Rank))+geom_point()
+
+cor.test(FB17$Win,FB17$Off.Rank)
+cor.test(upsetters$Win,upsetters$Off.Rank)
+cor.test(upsetteams$Win,upsetteams$Off.Rank)
+```
+Purely based on offense, the upset teams had a much smaller correlation between their offensive ranking and their Win totals when compared to the average fbs team as well as the upsetters.  
+
+## Interpretation
+
+Overall there seems to be a small set of statistics that one could use to reason why teams get upset.  The biggest one is that the average team who upsets another tends to have a better than average offense.
+
+Also, the linear models generated predicted that the Upset teams outperformed their predictions while the Upsetter teams under performed their predictions.  This leads to uncounted variables(such as injuries, home/away game, time of day etc.) or natural variation being an explanation for why these teams got upset.  
+
+Overall based on this data and testing, i have found no significant characteristics of upset teams in 2015.  
+
+## 2018
+
+Same Criteria as above
+
+(Ohio State, Purdue) - 1 loss
+(Florida, Missouri) - 3 loss
+(Washington St., USC) - 2 loss
+(Kentucky, Tennessee) - 3 loss
+(Syracuse, Pittsburgh) - 3 loss
+
+```{r}
+#teams who got upset
+
+osu18 <- FB18 %>% 
+  filter(Team == "Ohio St. (Big Ten)")
+
+florida18 <- FB18 %>% 
+  filter(Team == "Florida (SEC)")
+
+washstate18 <- FB18 %>% 
+  filter(Team == "Washington St. (Pac-12)")
+
+kentucky18 <- FB18 %>% 
+  filter(Team == "Kentucky (SEC)")
+
+syracuse18 <- FB18 %>% 
+  filter(Team == "Syracuse (ACC)")
+
+upsetteams2018 <- rbind(osu18, florida18, washstate18, kentucky18, syracuse18)
+
+#upsetters
+
+purdue18 <- FB18 %>% 
+  filter(Team == "Purdue (Big Ten)")
+
+missouri18 <- FB18 %>% 
+  filter(Team == "Missouri (SEC)")
+
+usc18 <- FB18 %>% 
+  filter(Team == "Southern California (Pac-12)")
+
+tennessee18 <- FB18 %>% 
+  filter(Team == "Tennessee (SEC)")
+
+pitt18 <- FB18 %>% 
+  filter(Team == "Pittsburgh (ACC)")
+
+upsetters2018 <- rbind(purdue18, missouri18, usc18, tennessee18, pitt18)
+
+upsetteams2018
+upsetters2018
+```
+
+Analysis similar to 2017, but will include more statistics
+
+```{r}
+select.upsetters2018 <- upsetters2018 %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank,Redzone.Off.Rank,Redzone.Def.Rank,Sack.Rank,X3rd.Down.Def.Rank)
+  
+select.upset2018 <- upsetteams2018 %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank,Redzone.Off.Rank,Redzone.Def.Rank,Sack.Rank,X3rd.Down.Def.Rank)
+select.upsetters2018
+select.upset2018
+
+
+means.under2018 <- sapply(select.upsetters2018,FUN=mean)
+means.over2018 <- sapply(select.upset2018,FUN=mean)
+
+all.fbselect2018 <- FB18 %>% 
+  select(Win,Off.Rank,Def.Rank,Passing.Off.Rank,Penalty.Yards.Per.Game,Redzone.Points,Redzone.Points.Allowed,Rushing.Off.Rank,Scoring.Def.Rank,Redzone.Off.Rank,Redzone.Def.Rank,Sack.Rank,X3rd.Down.Def.Rank)
+
+fb.means2018 <- sapply(all.fbselect2018, FUN=mean)
+```
+```{r}
+mean.upset2018<-means.over2018-means.under2018 ## Upset teams means - upsetters means.  
+mean.all2018<-means.over2018-fb.means2018 ## upset teams - all team means
+
+mean.upset2018  # Positive rank is better for upsetters teams.  
+mean.all2018 
+means.under2018-fb.means2018 ## upsetting teams-all teams , negative rank is better for upsetters teams
+```
+
+The most intriguing statistic here is that the average upsetting team had a better defense than the team that they upset, but overall were a lot worse in terms of total offense.  Passing offenses were very close as were redzone points allowed.  Overall the upsetting teams seemed to perform much better defensively than offensively.  
+
+In general, it appears that the upsetting teams need to be better than average in order to upset a top 25 team.
+
+## Predictive analytics
+
+```{r}
+model.fit2018<-lm(Win~.,data=all.fbselect2018)
+
+step(model.fit2018,direction = "both",trace=F)
+
+lm(formula = Win ~ Off.Rank + Redzone.Points + Redzone.Points.Allowed + 
+    Scoring.Def.Rank + Redzone.Off.Rank + Sack.Rank, data = all.fbselect2018) # Best Model
+
+mean(predict.lm(model.fit2018,select.upset2018)-select.upset2018$Win)
+
+mean(predict.lm(model.fit2018,select.upsetters2018)-select.upsetters2018$Win)
+```
+
+This model under predicted the win totals for each group, but much more for the teams that were upset, this leads me to believe that the better teams were outperforming their true talent relative to the upset teams.  This may be decent evidence towards a pattern of upset.
+
+## Plotting and Correlations
+```{r}
+par(mfrow=c(2,2))
+ggplot(mapping=aes(upsetters2018$Win,upsetters2018$Def.Rank))+geom_point()
+ggplot(mapping=aes(upsetteams2018$Win,upsetteams2018$Def.Rank))+geom_point()
+ggplot(mapping = aes(FB18$Win,FB18$Def.Rank))+geom_point()+xlab("Wins")+ylab("Defensive Rank")
+
+cor.test(FB18$Win,FB18$Def.Rank)
+cor.test(upsetteams2018$Win,upsetteams2018$Def.Rank)
+cor.test(upsetters2018$Win,upsetters2018$Def.Rank)
+```
+There is a much stronger correlation between all teams Wins and Defensive ranking than upset teams or upsetting teams, however upsetting teams correlation is much higher than upset teams.
+
+## Interpretation
+
+In this case i would argue that there could be a slight connection between the defense of the upsetting team and their victory.  in 2016 the defensive ranking of these upset teams was overall higher than the teams they upset.  
+
+## combination of years
+```{r}
+all.upsetters<-rbind(select.upsetters,select.upsetters2018[,1:9])
+all.upsets<-rbind(select.upsetted,select.upset2018[,1:9])
+all.fbs<-rbind(all.fbselect,all.fbselect2018[,1:9])
+
+sapply(all.upsetters, mean)->mean.u
+sapply(all.upsets,mean)->mean.up
+sapply(all.fbs,mean)->mean.all.full
+
+mean.u-mean.all.full
+mean.u-mean.up
+
+par(mfrow=c(2,2))
+
+ggplot(mapping=aes(all.upsets$Def.Rank,all.upsets$Off.Rank,color="blue"))+geom_point()
+ggplot(mapping=aes(all.upsetters$Def.Rank,all.upsetters$Off.Rank,color="red"))+geom_point()
+
+mean(all.upsets$Off.Rank)
+mean(all.upsetters$Off.Rank)
+mean(all.fbs$Off.Rank)
+```
+Combining the years of 2017 and 2018 doesn't change much, however the clearest piece of evidence is still that in order to upset a top 25 team, you must be above average on offensive and defensive rankings.
+
+## Limitations
+
+1. We were unable to use full data set as using every variable was too taxing. We could have potentially missed key variables.
+
+2. Human bias in determining what a key statistic would be.
+
+3. Small Sample size in terms of number of teams in individual years.
+
+4. Data did not contain every single college football team in the NCAA-FBS league.
+
+5. We didn't take into account every possible upset that one could justify.
